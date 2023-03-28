@@ -25,6 +25,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  chunked_downloader:
+    dependency: "direct main"
+    description:
+      name: chunked_downloader
+      sha256: "7fe3a37a0c7fb1d41f3f922c30937fdccae2647b6f6f71778bffcf4823048754"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.2"
   clock:
     dependency: transitive
     description:

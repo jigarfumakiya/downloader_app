@@ -9,6 +9,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -151,7 +152,7 @@ typedef ProgressDoneCallback = void Function(String filepath);
 //   }
 
 class DownloadService {
-  static const int _chunkSize = (1024 * 4) * (1024 * 4); // 16 MB
+  static const int _chunkSize = (1024 * 8) * (1024 * 8); // 16 MB
   int _progress = 0;
 
   DownloadService();
@@ -200,15 +201,28 @@ class DownloadService {
           completer.complete();
         },
       ).catchError((error) => completer.completeError(error));
-
-      // Verify sequence of downloaded files
-      final outputFile = File(savePath);
-      await outputFile.writeAsBytes(
-        downloadedFiles
-            .expand((f) => f.readAsBytesSync())
-            .toList(growable: false),
-      );
     }));
+
+    // Verify sequence of downloaded files
+    downloadedFiles.sort(
+      (a, b) {
+        final String filenameA = p.basename(a.path);
+        final String filenameB = p.basename(b.path);
+        return filenameA.compareTo(filenameB);
+      },
+    );
+
+    final outputFile = File(savePath);
+    await outputFile.writeAsBytes(
+      downloadedFiles.expand((f) {
+        return f.readAsBytesSync();
+      }).toList(growable: false),
+    );
+
+    /// Delete all file in download
+    downloadedFiles.forEach((element) {
+      element.delete();
+    });
   }
 
   Future<String> _getDownloadDirectory() async {
@@ -224,7 +238,7 @@ class DownloadService {
     final List<Range> ranges = [];
     for (int i = 0; i < numberOfChunks; i++) {
       final start = i * _chunkSize;
-      final end = min(start + _chunkSize - 1, contentLength);
+      final end = min(start + _chunkSize, contentLength);
       ranges.add(Range(start, end));
     }
     return ranges;
@@ -244,19 +258,24 @@ class DownloadService {
   Future<void> _downloadChunk(String magnetUri, String savePath, int start,
       int end, int contentLength, ProgressCallback progressCallback) async {
     final client = HttpClient();
-    final uri = Uri.parse(magnetUri);
-    final request = await client.getUrl(uri);
-    
-    request.headers.set(HttpHeaders.rangeHeader, 'bytes=$start-$end');
-    final response = await request.close();
+    var request = http.Request('GET', Uri.parse(magnetUri));
+
+    final header = {
+      HttpHeaders.rangeHeader: 'bytes=$start-$end',
+      'cache-control': 'no-cache',
+    };
+    request.headers.addAll(header);
+    print('headers ${request.headers}');
+
+    final response = await request.send();
 
     if (response.statusCode == HttpStatus.partialContent) {
       final file = File(savePath);
-      // final randomAccessFile = file.openSync(mode: FileMode.write);
-      final randomAccessFile = await file.open(mode: FileMode.writeOnlyAppend);
+      final randomAccessFile = await file.open(mode: FileMode.append);
       final completer = Completer();
+      print('response ${response.headers}');
 
-      response.listen((List<int> data) async {
+      response.stream.listen((List<int> data) async {
         randomAccessFile.writeFromSync(data);
         print('Range Header bytes=$start-$end Filepath $file');
         progressCallback(data.length, end - start + 1);
