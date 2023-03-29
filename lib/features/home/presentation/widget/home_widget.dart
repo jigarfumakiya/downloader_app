@@ -6,7 +6,7 @@ import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart'
 import 'package:downloader_app/features/home/presentation/widget/list_view_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:path/path.dart' as p;
+
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -33,14 +33,7 @@ class _HomeWidgetState extends State<HomeWidget> {
     }
   }
 
-  Future<String> _getDownloadDirectory() async {
-    if (Platform.isAndroid) {
-      // return (await getExternalStorageDirectory())!.path;
-      return (await getApplicationDocumentsDirectory()).path;
-    } else {
-      return (await getDownloadsDirectory())!.path;
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -130,11 +123,6 @@ class _HomeWidgetState extends State<HomeWidget> {
     // const url = "https://file-examples.com/wp-content/uploads/2017/10/file_example_JPG_2500kB.jpg"; //Image
     // const url = "https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_5MG.mp3"; //Audio
     // const url = "https://filesamples.com/samples/video/mp4/sample_3840x2160.mp4"; //Video
-    final fileName = p.basename(url);
-    final path = await _getDownloadDirectory();
-    final fullPath = '$path/$fileName';
-    print(fullPath);
 
-    DownloadService().downloadFile(url, fullPath);
   }
 }

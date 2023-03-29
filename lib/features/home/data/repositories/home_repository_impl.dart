@@ -23,9 +23,16 @@ class HomeRepositoryImpl implements HomeRepository {
         final useResponse = await remoteSource.getDownloads();
         await localSource.cacheDownloades(useResponse);
       }
+      //Refresh the list
+      refreshList();
       return Right(users);
     } on ApiException catch (e) {
       return Left(ServerFailure(e.message));
     }
+  }
+
+  Future<void> refreshList() async {
+    final useResponse = await remoteSource.getDownloads();
+    await localSource.cacheDownloades(useResponse);
   }
 }

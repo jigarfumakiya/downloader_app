@@ -11,68 +11,70 @@ import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 /// Global [typedef] that returns a `int` with the current byte on download
 /// and another `int` with the total of bytes of the file.
-typedef ProgressCallback = void Function(int count, int total);
+typedef ProgressCallback = void Function(
+    int remainBytes, int totalBytes, double percentage);
 
 /// Global [typedef] that returns a `string` with download file path
 typedef ProgressDoneCallback = void Function(String filepath);
 
-class DownloadService {
-  static const int _chunkSize = (1024 * 8) * (1024 * 8); // 16 MB
-  int _progress = 0;
+typedef ProgressErrorCallback = void Function(dynamic error);
 
-  DownloadService();
+class DownloadService {
+  static const int _chunkSize = (1024 * 8) * (1024 * 8); // 64 MB
+  final client = HttpClient();
+  final String id;
+
+  final ProgressCallback _progressCallback;
+  final ProgressDoneCallback _doneCallback;
+  final ProgressErrorCallback _errorCallback;
+  final List<StreamSubscription<List<int>>> _subscriptions;
+
+  DownloadService({
+    required this.id,
+    required ProgressCallback progressCallback,
+    required ProgressDoneCallback doneCallback,
+    required ProgressErrorCallback errorCallback,
+  })  : _progressCallback = progressCallback,
+        _doneCallback = doneCallback,
+        _errorCallback = errorCallback,
+        _subscriptions = [];
 
   Future<void> downloadFile(String magnetUri, String savePath) async {
-    final List<Completer<void>> completerList = [];
+    // Calculate dynamic chunk size based on content length and maximum chunks allowed
+
     final int contentLength = await _getContentLength(magnetUri);
+    const int maxChunks = 4;
+    int dynamicChunkSize =
+        max(contentLength ~/ maxChunks, 1024 * 1024 * 64); // Default 64 MB
 
-    // Create directory
-    final dir = Directory(savePath).parent;
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    final int numberOfChunks = (contentLength / _chunkSize).ceil();
+    final int numberOfChunks = (contentLength / dynamicChunkSize).ceil();
     final List<Range> ranges = _splitRange(contentLength, numberOfChunks);
-
     final List<File> downloadedFiles = [];
 
     await Future.wait(ranges.map((range) async {
       print('Range $range ');
-      final completer = Completer<void>();
-      completerList.add(completer);
-      final dirPath = await _getDownloadDirectory();
-      final filePath =
-          '$dirPath/${range.start}-${range.end}-${p.basename(magnetUri)}';
-      final dir = Directory(filePath).parent;
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
-      await _downloadChunk(
+      final filePath = await _downloadChunk(
         magnetUri,
-        filePath,
+        savePath,
         range.start,
         range.end,
         contentLength,
-        (count, total) {
-          _progress += count;
-          final progress = _progress / contentLength * 100;
-          print(
-              'Download progress: ${progress.toStringAsFixed(2)}  MB ${_progress / 1000000}');
-        },
-      ).then(
-        (value) {
-          downloadedFiles.add(File(filePath));
-          completer.complete();
-        },
-      ).catchError((error) => completer.completeError(error));
+      ).catchError((error) => print('Download error: $error'));
+
+      if (filePath != null) {
+        downloadedFiles.add(File(filePath));
+      } else {
+        print('Download null value');
+      }
     }));
 
     // Verify sequence of downloaded files
+    downloadedFiles
+        .sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+
     downloadedFiles.sort(
       (a, b) {
         final String filenameA = p.basename(a.path);
@@ -81,25 +83,32 @@ class DownloadService {
       },
     );
 
-    final outputFile = File(savePath);
-    await outputFile.writeAsBytes(
-      downloadedFiles.expand((f) {
-        return f.readAsBytesSync();
-      }).toList(growable: false),
-    );
+    // Create directory
+    final dir = Directory(savePath).parent;
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
 
-    /// Delete all file in download
-    downloadedFiles.forEach((element) {
-      element.delete();
-    });
+    // Merge downloaded files into a single file
+    final outputFile = File(savePath);
+    final outputSink = outputFile.openWrite();
+    for (final file in downloadedFiles) {
+      await outputSink.addStream(file.openRead());
+      await file.delete();
+    }
+    await outputSink.close();
+    _doneCallback(outputFile.path);
   }
 
-  Future<String> _getDownloadDirectory() async {
-    if (Platform.isAndroid) {
-      // return (await getExternalStorageDirectory())!.path;
-      return (await getApplicationDocumentsDirectory()).path;
-    } else {
-      return (await getDownloadsDirectory())!.path;
+  void pauseDownload() {
+    for (var subscription in _subscriptions) {
+      subscription.pause();
+    }
+  }
+
+  void resumeDownload() {
+    for (var subscription in _subscriptions) {
+      subscription.resume();
     }
   }
 
@@ -107,14 +116,14 @@ class DownloadService {
     final List<Range> ranges = [];
     for (int i = 0; i < numberOfChunks; i++) {
       final start = i * _chunkSize;
-      final end = min(start + _chunkSize, contentLength);
+      final end = min(start + _chunkSize - 1,
+          contentLength - 1); // Subtract 1 from end range
       ranges.add(Range(start, end));
     }
     return ranges;
   }
 
   Future<int> _getContentLength(String magnetUri) async {
-    final client = HttpClient();
     final uri = Uri.parse(magnetUri);
     final request = await client.getUrl(uri);
     final response = await request.close();
@@ -124,44 +133,65 @@ class DownloadService {
     return contentLength;
   }
 
-  Future<void> _downloadChunk(String magnetUri, String savePath, int start,
-      int end, int contentLength, ProgressCallback progressCallback) async {
-    final client = HttpClient();
+  Future<String?> _downloadChunk(String magnetUri, String savePath, int start,
+      int end, int contentLength) async {
     var request = http.Request('GET', Uri.parse(magnetUri));
 
+    final removePaht = savePath.split('/').last;
+    final dirPath = savePath.replaceAll(removePaht, "");
+    final filePath = '$dirPath$start-$end.tmp';
+    final currentFile = File(filePath);
+    int lastProgress = 0;
+
+    final bool fileExists = await currentFile.exists();
+    if (!fileExists) {
+      final dir = Directory(filePath).parent;
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+    } else {
+      lastProgress = await currentFile.length();
+    }
+    final rangeHeader = 'bytes=$start-$end';
     final header = {
-      HttpHeaders.rangeHeader: 'bytes=$start-$end',
+      HttpHeaders.rangeHeader:
+          fileExists ? 'bytes=$lastProgress-' : rangeHeader,
       'cache-control': 'no-cache',
     };
     request.headers.addAll(header);
-    print('headers ${request.headers}');
 
     final response = await request.send();
-
     if (response.statusCode == HttpStatus.partialContent) {
-      final file = File(savePath);
-      final randomAccessFile = await file.open(mode: FileMode.append);
-      final completer = Completer();
-      print('response ${response.headers}');
-
-      response.stream.listen((List<int> data) async {
+      final randomAccessFile = await currentFile.open(mode: FileMode.append);
+      final completer = Completer<String>();
+      final subscription = response.stream.listen((List<int> data) async {
+        final rangeLength = end - start + 1;
+        final currentProgress = lastProgress + data.length;
+        final remainingBytes = rangeLength - currentProgress;
+        final percentage = (currentProgress / rangeLength) * 100;
         randomAccessFile.writeFromSync(data);
-        print('Range Header bytes=$start-$end Filepath $file');
-        progressCallback(data.length, end - start + 1);
-      }, onDone: () {
-        print('Chunk Downloaded');
-        randomAccessFile.closeSync();
-        completer.complete();
-      }, onError: (error) {
-        randomAccessFile.closeSync();
+        _progressCallback(remainingBytes, contentLength, percentage);
+        lastProgress = currentProgress;
+      }, onDone: () async {
+        print('Chunk Downloaded ${currentFile.path}');
+        completer.complete(currentFile.path);
+        await randomAccessFile.close();
+      }, onError: (error) async {
+        await randomAccessFile.close();
         completer.completeError(error);
+        _errorCallback(error);
       });
 
-      await completer.future;
+      _subscriptions.add(subscription);
+      completer.future.then((_) {
+        _subscriptions.remove(subscription);
+      }).catchError((_) {
+        _subscriptions.remove(subscription);
+      });
+      return completer.future;
     } else {
       throw Exception('Failed to download chunk from $magnetUri');
     }
-    client.close();
   }
 }
 
@@ -170,4 +200,12 @@ class Range {
   final int end;
 
   Range(this.start, this.end);
+}
+
+class DownloadChunkModel {
+  late final String magnetUri;
+  final String savePath;
+  final int start;
+  final int end;
+  final int contentLength;
 }
