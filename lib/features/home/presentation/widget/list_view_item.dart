@@ -1,3 +1,5 @@
+import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
+import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:flutter/material.dart';
 
 /**
@@ -8,7 +10,12 @@ import 'package:flutter/material.dart';
  */
 
 class ListViewItem extends StatelessWidget {
-  const ListViewItem({Key? key}) : super(key: key);
+  final DownloadNetwork item;
+
+  const ListViewItem({
+    Key? key,
+    required this.item,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -20,39 +27,58 @@ class ListViewItem extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              const Expanded(
                 child: Text('Dummy Download',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     )),
               ),
-              TextButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.play_arrow),
-                label: Text('Start'),
-              ),
+              if (item.state == DownloadState.notStarted)
+                TextButton.icon(
+                  onPressed: onStart,
+                  icon: Icon(Icons.play_arrow),
+                  label: Text('Start'),
+                ),
               const SizedBox(width: 10),
-              TextButton.icon(
-                onPressed: () {},
-                style: TextButton.styleFrom(
-                    backgroundColor: Colors.red,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10))),
-                icon: Icon(Icons.stop_circle),
-                label: Text('Stop'),
-              ),
+              if (item.state == DownloadState.downloading) ...{
+                TextButton.icon(
+                  onPressed: () {},
+                  icon: Icon(Icons.pause),
+                  label: Text('Pause'),
+                ),
+                const SizedBox(width: 10),
+                TextButton.icon(
+                  onPressed: () {},
+                  style: TextButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10))),
+                  icon: const Icon(Icons.stop_circle),
+                  label: const Text('Stop'),
+                ),
+              }
             ],
           ),
-          SizedBox(height: 10),
-          LinearProgressIndicator(),
-          SizedBox(height: 10),
-          Divider(
-            thickness: 1,
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(
+            value: 0,
+            minHeight: 10,
           ),
+          const SizedBox(height: 10),
+          const Divider(thickness: 1),
         ],
       ),
     );
   }
+
+
+  /// class methods
+
+  void onStart(){
+
+  }
+
+
 }

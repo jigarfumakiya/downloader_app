@@ -2,12 +2,26 @@ import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 part 'download_table.g.dart';
+
 /**
  * @Author: Jigar Fumakiya
  * @Date: 29/03/23
  * @Project: downloader_app
  * download_table
  */
+
+@HiveType(typeId: 2)
+enum DownloadState {
+  @HiveField(0)
+  notStarted,
+  @HiveField(1)
+  downloading,
+  @HiveField(2)
+  completed,
+  @HiveField(3)
+  pause,
+}
+
 
 @HiveType(typeId: 001)
 class DownloadTable extends DownloadNetwork {

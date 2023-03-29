@@ -1,8 +1,17 @@
+import 'package:downloader_app/core/injeaction/injection_container.dart';
+import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/home_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-void main() {
+import 'features/home/data/datasource/local/database/database_util.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await init();
+  await DatabaseUtil.initDatabase();
   runApp(const MyApp());
 }
 
@@ -11,15 +20,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ScreenUtilInit(
-      builder: (context, child) => MaterialApp(
-          debugShowCheckedModeBanner: false,
-          title: 'Downloader',
-          theme: ThemeData(
-            primarySwatch: Colors.blue,
-          ),
-          home: child),
-      child: const HomeWidget(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (context) => sl<HomeCubit>()),
+      ],
+      child: ScreenUtilInit(
+        builder: (context, child) => MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'Downloader',
+            theme: ThemeData(
+              primarySwatch: Colors.blue,
+            ),
+            home: child),
+        child: const HomeWidget(),
+      ),
     );
   }
 }

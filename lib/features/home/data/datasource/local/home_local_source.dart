@@ -16,6 +16,7 @@ class HomeLocalSourceImpl
     with HomeLocalSource {
   HomeLocalSourceImpl() : super(boxName: 'download') {
     DatabaseUtil.registerAdapter<DownloadTable>(DownloadTableAdapter());
+    DatabaseUtil.registerAdapter<DownloadState>(DownloadStateAdapter());
   }
 
   @override

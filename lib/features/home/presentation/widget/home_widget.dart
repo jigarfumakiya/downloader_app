@@ -1,8 +1,11 @@
 import 'dart:io';
 
 import 'package:downloader_app/core/service/downloader_service/download_service.dart';
+import 'package:downloader_app/features/home/data/models/home_network.dart';
+import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/list_view_item.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -41,8 +44,13 @@ class _HomeWidgetState extends State<HomeWidget> {
 
   @override
   Widget build(BuildContext context) {
+    BlocProvider.of<HomeCubit>(context).getDownloads();
     return Scaffold(
       appBar: AppBar(title: Text('File Downloader')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: onAddDownload,
+        child: Icon(Icons.add),
+      ),
       body: _buildHomeBody(),
     );
   }
@@ -50,14 +58,64 @@ class _HomeWidgetState extends State<HomeWidget> {
   Widget _buildHomeBody() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: ListView(
-        children: const [
-          ListViewItem(),
-          ListViewItem(),
-          ListViewItem(),
-          ListViewItem(),
-        ],
+      child: BlocBuilder<HomeCubit, HomeState>(
+        builder: (context, state) {
+          if (state is HomeLoading) {
+            return const CircularProgressIndicator();
+          } else if (state is HomeFailureState) {
+            return Text(state.failureMessage);
+          } else if (state is HomeSuccessState) {
+            return _buildListView(state.downloads);
+          } else {
+            return const CircularProgressIndicator();
+          }
+        },
       ),
+    );
+  }
+
+  Widget _buildListView(List<DownloadNetwork> downloads) {
+    return ListView.builder(
+      itemCount: downloads.length,
+      itemBuilder: (context, index) {
+        final item = downloads[index];
+        return ListViewItem(
+          item: item,
+        );
+      },
+    );
+  }
+
+  void onAddDownload() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add File'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const <Widget>[
+              TextField(
+                decoration: InputDecoration(hintText: 'Paste URL'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+
+              },
+              child: Text('Add'),
+            )
+          ],
+        );
+      },
     );
   }
 

@@ -1,3 +1,4 @@
+import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
 
 abstract class HomeRemoteSource {
