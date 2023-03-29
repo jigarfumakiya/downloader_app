@@ -4,13 +4,14 @@
  * @Project: downloader_app
  * download_service
  */
-import 'package:http/http.dart' as http;
+// import 'package:http/http.dart' as http;
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 
+import 'package:http/http.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../main.dart';
@@ -40,13 +41,14 @@ typedef ProgressErrorCallback = void Function(dynamic error);
 ///
 class DownloadService {
   static const int _chunkSize = (1024 * 8) * (1024 * 8); // 64 MB
-  final client = HttpClient();
+  final HttpClient ioClient;
   final String id;
 
   final ProgressCallback _progressCallback;
   final ProgressDoneCallback _doneCallback;
   final ProgressErrorCallback _errorCallback;
   List<_DownloadTask> isolates;
+  final Client client;
 
   /// Creates a new DownloadService instance.
   ///
@@ -56,13 +58,15 @@ class DownloadService {
   /// [errorCallback] is called when an error occurs during the download.
   DownloadService({
     required this.id,
+    required this.ioClient,
+    required this.client,
     required ProgressCallback progressCallback,
     required ProgressDoneCallback doneCallback,
     required ProgressErrorCallback errorCallback,
   })  : _progressCallback = progressCallback,
         _doneCallback = doneCallback,
         _errorCallback = errorCallback,
-        isolates=[];
+        isolates = [];
 
   /// Downloads a file using the given [magnetUri] and saves it to [savePath].
   ///
@@ -148,7 +152,6 @@ class DownloadService {
     _doneCallback(outputFile.path);
   }
 
-
   /// Top Level Function
   /// Downloads a chunk of a file using partial content requests.
   ///
@@ -163,14 +166,14 @@ class DownloadService {
   /// [contentLength] is the total length of the file being downloaded.
   ///
   /// Returns a [Future] that completes with the path of the downloaded chunk file.
- static Future<void> downloadChunkInIsolate(DownloadChunkModel model) async {
+  static Future<void> downloadChunkInIsolate(DownloadChunkModel model) async {
     final String magnetUri = model.magnetUri;
     final String savePath = model.savePath;
     final Range range = model.range;
     final int contentLength = model.contentLength;
     final SendPort sendPort = model.sendPort;
 
-    var request = http.Request('GET', Uri.parse(magnetUri));
+    var request = Request('GET', Uri.parse(magnetUri));
 
     final removePath = savePath.split('/').last;
     final dirPath = savePath.replaceAll(removePath, "");
@@ -299,11 +302,11 @@ class DownloadService {
   /// Returns a [Future] that completes with the content length as an integer.
   Future<int> _getContentLength(String magnetUri) async {
     final uri = Uri.parse(magnetUri);
-    final request = await client.getUrl(uri);
+    final request = await ioClient.getUrl(uri);
     final response = await request.close();
     final contentLength =
         int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!);
-    client.close();
+    ioClient.close();
     return contentLength;
   }
 }

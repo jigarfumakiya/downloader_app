@@ -7,7 +7,6 @@ import 'package:downloader_app/features/home/presentation/widget/list_view_item.
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class HomeWidget extends StatefulWidget {

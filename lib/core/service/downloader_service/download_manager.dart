@@ -1,5 +1,8 @@
 import 'package:downloader_app/core/service/downloader_service/download_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
+import 'package:http/http.dart';
+
+import '../../injeaction/injection_container.dart';
 /**
  * @Author: Jigar Fumakiya
  * @Date: 29/03/23
@@ -40,6 +43,7 @@ class DownloadManager {
     required ProgressCallback progressCallback,
     required ProgressDoneCallback doneCallback,
     required ProgressErrorCallback errorCallback,
+    Client? client,
   }) async {
     final downloadId = _createDownloadId(magnetUri, savePath);
     _downloadStates[downloadId] = DownloadState.downloading;
@@ -48,7 +52,9 @@ class DownloadManager {
         id: downloadId,
         progressCallback: progressCallback,
         doneCallback: doneCallback,
-        errorCallback: errorCallback);
+        errorCallback: errorCallback,
+        client: client ?? sl(),
+        ioClient: sl());
     _downloads.add(downloadService);
     downloadService.downloadFile(magnetUri, savePath).then((value) {
       _downloads.remove(downloadService);
