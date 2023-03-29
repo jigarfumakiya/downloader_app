@@ -121,8 +121,8 @@ class _ListViewItemState extends State<ListViewItem> {
           progress = (percentage / 100);
         });
         // print('on progress called $progress ');
-        print('Remain Bytes $remainBytes ');
-        print('Total Bytes $totalBytes ');
+        // print('Remain Bytes $remainBytes ');
+        // print('Total Bytes $totalBytes ');
         // print('percentage $percentage ');
       },
       doneCallback: (filepath) {

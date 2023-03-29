@@ -7,10 +7,13 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
+
+import '../../../main.dart';
 
 /// Global [typedef] that returns a `int` with the current byte on download
 /// and another `int` with the total of bytes of the file.
@@ -31,6 +34,7 @@ class DownloadService {
   final ProgressDoneCallback _doneCallback;
   final ProgressErrorCallback _errorCallback;
   final List<StreamSubscription<List<int>>> _subscriptions;
+  List<DownloadTask> isolates = [];
 
   DownloadService({
     required this.id,
@@ -44,7 +48,6 @@ class DownloadService {
 
   Future<void> downloadFile(String magnetUri, String savePath) async {
     // Calculate dynamic chunk size based on content length and maximum chunks allowed
-
     final int contentLength = await _getContentLength(magnetUri);
     const int maxChunks = 4;
     int dynamicChunkSize =
@@ -54,34 +57,70 @@ class DownloadService {
     final List<Range> ranges = _splitRange(contentLength, numberOfChunks);
     final List<File> downloadedFiles = [];
 
-    await Future.wait(ranges.map((range) async {
-      print('Range $range ');
-      final filePath = await _downloadChunk(
-        magnetUri,
-        savePath,
-        range.start,
-        range.end,
-        contentLength,
-      ).catchError((error) => print('Download error: $error'));
+    // Create a list of ReceivePort instances to receive data from isolates
+    List<ReceivePort> receivePorts = [];
 
-      if (filePath != null) {
-        downloadedFiles.add(File(filePath));
-      } else {
-        print('Download null value');
-      }
-    }));
+    // Run downloadChunk function in separate isolates
+    for (int i = 0; i < ranges.length; i++) {
+      ReceivePort receivePort = ReceivePort();
+      receivePorts.add(receivePort);
+
+      Isolate isolate = await Isolate.spawn(
+        downloadChunkInIsolate,
+        DownloadChunkModel(
+          magnetUri: magnetUri,
+          savePath: savePath,
+          range: ranges[i],
+          contentLength: contentLength,
+          sendPort: receivePort.sendPort,
+        ),
+      );
+      final model = DownloadTask(isolate: isolate);
+      isolates.add(model);
+
+      receivePort.listen((message) {
+        if (message['type'] == 'progress') {
+          print(message['path']);
+          _progressCallback(
+            message['remainingBytes'],
+            message['contentLength'],
+            message['percentage'],
+          );
+        } else if (message['type'] == 'done') {
+          downloadedFiles.add(File(message['filePath']));
+          _doneCallback(message['filePath']);
+          isolate.kill(priority: Isolate.immediate);
+        } else if (message['type'] == 'error') {
+          _errorCallback(message['error']);
+        }
+      });
+    }
+
+    // await Future.wait(ranges.map((range) async {
+    //   print('Range $range ');
+    //   final filePath = await _downloadChunk(
+    //     magnetUri,
+    //     savePath,
+    //     range.start,
+    //     range.end,
+    //     contentLength,
+    //   ).catchError((error) => print('Download error: $error'));
+    //
+    //   if (filePath != null) {
+    //     downloadedFiles.add(File(filePath));
+    //   } else {
+    //     print('Download null value');
+    //   }
+    // }));
+
+    // Merge downloaded files after all isolates have completed their tasks
+    while (downloadedFiles.length != ranges.length) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
 
     // Verify sequence of downloaded files
     downloadedFiles
         .sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
-
-    downloadedFiles.sort(
-      (a, b) {
-        final String filenameA = p.basename(a.path);
-        final String filenameB = p.basename(b.path);
-        return filenameA.compareTo(filenameB);
-      },
-    );
 
     // Create directory
     final dir = Directory(savePath).parent;
@@ -101,14 +140,18 @@ class DownloadService {
   }
 
   void pauseDownload() {
-    for (var subscription in _subscriptions) {
-      subscription.pause();
+    for (var subscription in isolates) {
+      final isolate = subscription.isolate;
+      subscription.capability =
+          isolate.pause(subscription.isolate.pauseCapability);
     }
   }
 
   void resumeDownload() {
-    for (var subscription in _subscriptions) {
-      subscription.resume();
+    for (var subscription in isolates) {
+      final isolate = subscription.isolate;
+      print('isolate called');
+      isolate.resume(subscription.capability!);
     }
   }
 
@@ -200,12 +243,60 @@ class Range {
   final int end;
 
   Range(this.start, this.end);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'start': start,
+      'end': end,
+    };
+  }
+
+  factory Range.fromJson(Map<String, dynamic> json) {
+    return Range(
+      json['start'] as int,
+      json['end'] as int,
+    );
+  }
 }
 
 class DownloadChunkModel {
-  late final String magnetUri;
+  final String magnetUri;
   final String savePath;
-  final int start;
-  final int end;
+  final Range range;
   final int contentLength;
+  final SendPort sendPort;
+
+  DownloadChunkModel({
+    required this.magnetUri,
+    required this.savePath,
+    required this.range,
+    required this.contentLength,
+    required this.sendPort,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'magnetUri': magnetUri,
+      'savePath': savePath,
+      'range': range.toJson(),
+      'contentLength': contentLength,
+      'sendPort': sendPort,
+    };
+  }
+
+  factory DownloadChunkModel.fromJson(Map<String, dynamic> json) {
+    return DownloadChunkModel(
+        magnetUri: json['magnetUri'] as String,
+        savePath: json['savePath'] as String,
+        range: Range.fromJson(json['range'] as Map<String, dynamic>),
+        contentLength: json['contentLength'] as int,
+        sendPort: json['sendPort'] as SendPort);
+  }
+}
+
+class DownloadTask {
+  final Isolate isolate;
+  Capability? capability;
+
+  DownloadTask({required this.isolate, this.capability});
 }

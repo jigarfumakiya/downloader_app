@@ -1,6 +1,5 @@
 import 'package:downloader_app/core/service/downloader_service/download_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
-
 /**
  * @Author: Jigar Fumakiya
  * @Date: 29/03/23
@@ -9,7 +8,7 @@ import 'package:downloader_app/features/home/data/datasource/local/database/tabl
  */
 
 class DownloadManager {
-  Map<String, DownloadState> _downloadStates = {};
+  final Map<String, DownloadState> _downloadStates = {};
 
   final List<DownloadService> _downloads = [];
 
