@@ -13,6 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ScreenUtilInit(
       builder: (context, child) => MaterialApp(
+          debugShowCheckedModeBanner: false,
           title: 'Downloader',
           theme: ThemeData(
             primarySwatch: Colors.blue,
