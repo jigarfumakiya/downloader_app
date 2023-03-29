@@ -1,16 +1,34 @@
-# downloader_app
+# Downloader App
 
-A new Flutter project.
+#### The Downloader App is a Dart-based application that handles downloading large files in chunks using isolates. The application supports pausing and resuming the download, and provides progress updates throughout the download process.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+* Download large files in chunks
+* Pause and resume downloads
+* Track progress during download
+* Manage download tasks using isolates
 
-A few resources to get you started if this is your first Flutter project:
+## Usage
+#### Here is an example of how to use the Downloader App:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```dart
+ final downloadId = await downloadManager.addDownload(
+      Paste URL here,
+      full/path/to/file,
+      progressCallback: (remainBytes, totalBytes, percentage) {
+        print('Remain Bytes $remainBytes ');
+         print('Total Bytes $totalBytes ');
+         print('percentage $percentage ');
+      },
+      doneCallback: (filepath) {
+        setState(() {});
+      },
+      errorCallback: (error) {
+        print('on error called');
+      },
+    );
+    print('downloadId $downloadId');
+```
+
