@@ -179,6 +179,7 @@ class _ListViewItemState extends State<ListViewItem> {
           onDone(item);
         },
         errorCallback: (error) {
+          print(error);
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text(error.toString())));
         },

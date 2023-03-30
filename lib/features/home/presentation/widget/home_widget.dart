@@ -44,9 +44,7 @@ class _HomeWidgetState extends State<HomeWidget> {
       ),
       body: ResponsiveLayout(
         mobile: _buildHomeBody(),
-        macOS: Container(
-          child: Text('Macos'),
-        ),
+        macOS: _buildHomeBody(),
         tablet: Container(),
       ),
     );
