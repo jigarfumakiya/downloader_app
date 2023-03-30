@@ -23,10 +23,6 @@ final sampleDownloadList = [
       fileName: '100 MB',
       url: 'https://speed.hetzner.de/100MB.bin',
       state: DownloadState.notStarted),
-  DownloadNetwork(
-      fileName: '200 MB',
-      url: 'http://ipv4.download.thinkbroadband.com/200MB.zip',
-      state: DownloadState.notStarted)
 ];
 
 abstract class HomeLocalSource {

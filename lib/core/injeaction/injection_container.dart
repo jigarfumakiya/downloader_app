@@ -8,12 +8,19 @@ import 'package:downloader_app/features/home/data/repositories/home_repository_i
 import 'package:downloader_app/features/home/domain/repositories/home_repository.dart';
 import 'package:downloader_app/features/home/domain/usecase/home_use_case.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
+import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart';
 
 final GetIt sl = GetIt.instance;
 
 Future<void> init({bool isMock = false}) async {
+  if (isMock) {
+    WidgetsFlutterBinding.ensureInitialized();
+    // Add flavour here if we are testing unit test cases
+
+    sl.reset();
+  }
   //? Bloc
   sl.registerFactory(() => HomeCubit(sl()));
 

@@ -3,10 +3,9 @@ import 'dart:io';
 import 'package:downloader_app/core/service/downloader_service/download_manager.dart';
 import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/core/widgets/resposive_layout.dart';
-import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/add_downlaod_dialog.dart';
-import 'package:downloader_app/features/home/presentation/widget/list_view_item.dart';
+import 'package:downloader_app/features/home/presentation/widget/home_list_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -29,7 +28,6 @@ class _HomeWidgetState extends State<HomeWidget> {
   @override
   void initState() {
     super.initState();
-    BlocProvider.of<HomeCubit>(context).getDownloads();
     if (!Platform.isMacOS) {
       askPermission();
     }
@@ -82,26 +80,16 @@ class _HomeWidgetState extends State<HomeWidget> {
           } else if (state is HomeFailureState) {
             return Text(state.failureMessage);
           } else if (state is HomeSuccessState) {
-            return _buildListView(state.downloads);
+            return HomeListView(
+              downloads: state.downloads,
+              notificationService: widget.notificationService,
+              downloadManager: widget.downloadManager,
+            );
           } else {
             return const CircularProgressIndicator();
           }
         },
       ),
-    );
-  }
-
-  Widget _buildListView(List<DownloadNetwork> downloads) {
-    return ListView.builder(
-      itemCount: downloads.length,
-      itemBuilder: (context, index) {
-        final item = downloads[index];
-        return ListViewItem(
-          item: item,
-          notificationService: widget.notificationService,
-          downloadManager: widget.downloadManager,
-        );
-      },
     );
   }
 

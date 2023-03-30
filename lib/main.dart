@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (context) => sl<HomeCubit>()),
+        BlocProvider(create: (context) => sl<HomeCubit>()..getDownloads()),
       ],
       child: ScreenUtilInit(
         builder: (context, child) => MaterialApp(

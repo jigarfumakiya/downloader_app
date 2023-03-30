@@ -81,7 +81,7 @@ class _ListViewItemState extends State<ListViewItem> {
 
   @override
   Widget build(BuildContext context) {
-    print('build called');
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
