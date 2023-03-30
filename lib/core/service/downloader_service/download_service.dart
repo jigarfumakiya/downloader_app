@@ -72,85 +72,89 @@ class DownloadService {
   /// The file will be downloaded in chunks, with each chunk being handled by a separate isolate.
   Future<void> downloadFile(String magnetUri, String savePath) async {
     // Calculate dynamic chunk size based on content length and maximum chunks allowed
-    final int contentLength = await _getContentLength(magnetUri);
-    const int maxChunks = 4;
-    int dynamicChunkSize =
-        max(contentLength ~/ maxChunks, 1024 * 1024 * 64); // Default 64 MB
+    try {
+      final int contentLength = await _getContentLength(magnetUri);
+      const int maxChunks = 4;
+      int dynamicChunkSize =
+          max(contentLength ~/ maxChunks, 1024 * 1024 * 64); // Default 64 MB
 
-    final int numberOfChunks = (contentLength / dynamicChunkSize).ceil();
-    final List<Range> ranges = _splitRange(contentLength, numberOfChunks);
-    final List<File> downloadedFiles = [];
-    final int totalChunksSize = contentLength * numberOfChunks;
+      final int numberOfChunks = (contentLength / dynamicChunkSize).ceil();
+      final List<Range> ranges = _splitRange(contentLength, numberOfChunks);
+      final List<File> downloadedFiles = [];
+      final int totalChunksSize = contentLength * numberOfChunks;
 
-    // Create a list of ReceivePort instances to receive data from isolates
-    List<ReceivePort> receivePorts = [];
+      // Create a list of ReceivePort instances to receive data from isolates
+      List<ReceivePort> receivePorts = [];
 
-    // Run downloadChunk function in separate isolates
-    for (int i = 0; i < ranges.length; i++) {
-      ReceivePort receivePort = ReceivePort();
-      receivePorts.add(receivePort);
-      // Spawn an isolate and pass the download information
+      // Run downloadChunk function in separate isolates
+      for (int i = 0; i < ranges.length; i++) {
+        ReceivePort receivePort = ReceivePort();
+        receivePorts.add(receivePort);
+        // Spawn an isolate and pass the download information
 
-      Isolate isolate = await Isolate.spawn(
-        downloadChunkInIsolate,
-        DownloadChunkModel(
-          magnetUri: magnetUri,
-          savePath: savePath,
-          range: ranges[i],
-          contentLength: contentLength,
-          sendPort: receivePort.sendPort,
-          chunkSize: totalChunksSize,
-        ),
-      );
-      final model = _DownloadTask(isolate: isolate);
-      isolates.add(model);
+        Isolate isolate = await Isolate.spawn(
+          downloadChunkInIsolate,
+          DownloadChunkModel(
+            magnetUri: magnetUri,
+            savePath: savePath,
+            range: ranges[i],
+            contentLength: contentLength,
+            sendPort: receivePort.sendPort,
+            chunkSize: totalChunksSize,
+          ),
+        );
+        final model = _DownloadTask(isolate: isolate);
+        isolates.add(model);
 
-      // Listen for messages from the isolate
-      receivePort.listen((message) {
-        if (message['type'] == 'progress') {
-          // Update progress
-          _progressCallback(
-            message['currentBytes'],
-            message['contentLength'],
-            message['percentage'],
-          );
-        } else if (message['type'] == 'done') {
-          // Mark the chunk as downloaded and add the file to the list
+        // Listen for messages from the isolate
+        receivePort.listen((message) {
+          if (message['type'] == 'progress') {
+            // Update progress
+            _progressCallback(
+              message['currentBytes'],
+              message['contentLength'],
+              message['percentage'],
+            );
+          } else if (message['type'] == 'done') {
+            // Mark the chunk as downloaded and add the file to the list
 
-          downloadedFiles.add(File(message['filePath']));
-          _doneCallback(message['filePath']);
-          // Kill the isolate
-          isolate.kill(priority: Isolate.immediate);
-        } else if (message['type'] == 'error') {
-          _errorCallback(message['error']);
-        }
-      });
+            downloadedFiles.add(File(message['filePath']));
+            _doneCallback(message['filePath']);
+            // Kill the isolate
+            isolate.kill(priority: Isolate.immediate);
+          } else if (message['type'] == 'error') {
+            _errorCallback(message['error']);
+          }
+        });
+      }
+
+      // Merge downloaded files after all isolates have completed their tasks
+      while (downloadedFiles.length != ranges.length) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      // Verify sequence of downloaded files
+      downloadedFiles
+          .sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
+
+      // Create directory
+      final dir = Directory(savePath).parent;
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      // Merge downloaded files into a single file
+      final outputFile = File(savePath);
+      final outputSink = outputFile.openWrite();
+      for (final file in downloadedFiles) {
+        await outputSink.addStream(file.openRead());
+        await file.delete();
+      }
+      await outputSink.close();
+      _doneCallback(outputFile.path);
+    } catch (e) {
+      _errorCallback('Error occurred while downloading the file: $e');
     }
-
-    // Merge downloaded files after all isolates have completed their tasks
-    while (downloadedFiles.length != ranges.length) {
-      await Future.delayed(const Duration(milliseconds: 100));
-    }
-
-    // Verify sequence of downloaded files
-    downloadedFiles
-        .sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
-
-    // Create directory
-    final dir = Directory(savePath).parent;
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    // Merge downloaded files into a single file
-    final outputFile = File(savePath);
-    final outputSink = outputFile.openWrite();
-    for (final file in downloadedFiles) {
-      await outputSink.addStream(file.openRead());
-      await file.delete();
-    }
-    await outputSink.close();
-    _doneCallback(outputFile.path);
   }
 
   /// Top Level Function
@@ -220,13 +224,10 @@ class DownloadService {
           final percentage = (currentProgress / rangeLength) * 100;
           randomAccessFile.writeFromSync(data);
 
-          // print('percentage $percentage');
-          // print('currentBytes $currentProgress');
-
           // Send progress update
           sendPort.send({
             'type': 'progress',
-            'currentBytes': currentProgress ,
+            'currentBytes': currentProgress,
             'contentLength': contentLength,
             'percentage': percentage,
             'path': currentFile.path
@@ -303,12 +304,17 @@ class DownloadService {
   ///
   /// Returns a [Future] that completes with the content length as an integer.
   Future<int> _getContentLength(String magnetUri) async {
-    final uri = Uri.parse(magnetUri);
-    final request = await ioClient.getUrl(uri);
-    final response = await request.close();
-    final contentLength =
-        int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!);
-    return contentLength;
+    try {
+      final uri = Uri.parse(magnetUri);
+      final request = await ioClient.getUrl(uri);
+      final response = await request.close();
+      final contentLength =
+          int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!);
+      return contentLength;
+    } catch (e) {
+      _errorCallback('Error getting content length: $e');
+      rethrow;
+    }
   }
 }
 

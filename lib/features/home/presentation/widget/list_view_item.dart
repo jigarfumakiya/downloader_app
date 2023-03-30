@@ -63,22 +63,26 @@ class _ListViewItemState extends State<ListViewItem> {
                       fontWeight: FontWeight.bold,
                     )),
               ),
-              downloadState(widget.item)
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 10,
-            child: StreamBuilder<double>(
-              stream: _progressStreamController.stream,
-              initialData: 0.0,
-              builder: (context, snapshot) {
-                return LinearProgressIndicator(
-                  value: snapshot.data,
-                  minHeight: 10,
-                );
-              },
-            ),
+          StreamBuilder<double>(
+            stream: _progressStreamController.stream,
+            initialData: 0.0,
+            builder: (context, snapshot) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  LinearProgressIndicator(
+                    value: snapshot.data,
+                    minHeight: 10,
+                  ),
+                  const SizedBox(height: 10),
+                  downloadState(widget.item)
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           const Divider(thickness: 1),
@@ -130,29 +134,34 @@ class _ListViewItemState extends State<ListViewItem> {
   /// class methods
 
   Future<void> onStart(DownloadNetwork item) async {
-    final fileName = p.basename(item.url);
-    final path = await _getDownloadDirectory();
-    final fullPath = '$path/$fileName';
-    print(fullPath);
+    try {
+      final fileName = p.basename(item.url);
+      final path = await _getDownloadDirectory();
+      final fullPath = '$path/$fileName';
+      print(fullPath);
 
-    downloadId = await downloadManager.addDownload(
-      item.url,
-      fullPath,
-      progressCallback: (current, totalBytes, percentage) {
-
-        // final progress = (current / totalBytes) * 100;
-        // print('Downloading: $progress');
-        _progressStreamController.sink.add(percentage / 100);
-        //
-      },
-      doneCallback: (filepath) {
-        setState(() {});
-      },
-      errorCallback: (error) {
-        print('on error called');
-      },
-    );
-    print('downloadId $downloadId');
+      downloadId = await downloadManager.addDownload(
+        item.url,
+        fullPath,
+        progressCallback: (current, totalBytes, percentage) {
+          // final progress = (current / totalBytes) * 100;
+          // print('Downloading: $progress');
+          _progressStreamController.sink.add(percentage / 100);
+          //
+        },
+        doneCallback: (filepath) {
+          setState(() {});
+        },
+        errorCallback: (error) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(error.toString())));
+        },
+      );
+      print('downloadId $downloadId');
+    } catch (e) {
+      print('widget called');
+      print(e);
+    }
   }
 
   void onResume() {

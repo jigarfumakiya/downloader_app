@@ -40,7 +40,7 @@ class HomeCubit extends Cubit<HomeState> {
         getDownloads();
       });
     } catch (e) {
-      //Todo make generic class for error handling
+
       emit(HomeFailureState(e.toString()));
     }
   }
