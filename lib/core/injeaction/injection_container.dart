@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:downloader_app/core/service/downloader_service/download_manager.dart';
+import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/features/home/data/datasource/home_remote_source.dart';
 import 'package:downloader_app/features/home/data/datasource/local/home_local_source.dart';
 import 'package:downloader_app/features/home/data/repositories/home_repository_impl.dart';
@@ -19,7 +20,10 @@ Future<void> init({bool isMock = false}) async {
   //? Use Case
   sl.registerLazySingleton(() => HomeUseCase(sl()));
 
+  //? Service
   sl.registerLazySingleton(() => DownloadManager());
+  sl.registerLazySingleton(() => NotificationService());
+
   sl.registerLazySingleton(() => Client());
   sl.registerLazySingleton(() => HttpClient());
 

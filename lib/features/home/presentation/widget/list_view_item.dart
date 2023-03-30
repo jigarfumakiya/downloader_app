@@ -3,9 +3,12 @@ import 'dart:io';
 
 import 'package:downloader_app/core/injeaction/injection_container.dart';
 import 'package:downloader_app/core/service/downloader_service/download_manager.dart';
+import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
+import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -16,6 +19,7 @@ import 'package:path_provider/path_provider.dart';
  * list_view_item
  */
 final downloadManager = sl<DownloadManager>();
+final notificationService = sl<NotificationService>();
 
 class ListViewItem extends StatefulWidget {
   final DownloadNetwork item;
@@ -33,17 +37,35 @@ class _ListViewItemState extends State<ListViewItem> {
   double progress = 0.0;
   String downloadId = '';
   late StreamController<double> _progressStreamController;
+  bool isFileDownloaded = false;
 
   @override
   void initState() {
     super.initState();
     _progressStreamController = StreamController<double>();
+    checkIfFileDownloaded();
   }
 
   @override
   void dispose() {
     _progressStreamController.close();
     super.dispose();
+  }
+
+  Future<void> checkIfFileDownloaded() async {
+    final fileName = p.basename(widget.item.url);
+    final path = await _getDownloadDirectory();
+    final fullPath = '$path/$fileName';
+
+    /// Checks if a file has already been downloaded at the specified [savePath].
+    final file = File(fullPath);
+    return file.exists().then((value) {
+      if (mounted) {
+        setState(() {
+          isFileDownloaded = value;
+        });
+      }
+    });
   }
 
   @override
@@ -75,7 +97,7 @@ class _ListViewItemState extends State<ListViewItem> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   LinearProgressIndicator(
-                    value: snapshot.data,
+                    value: isFileDownloaded ? 100 : snapshot.data,
                     minHeight: 10,
                   ),
                   const SizedBox(height: 10),
@@ -123,11 +145,18 @@ class _ListViewItemState extends State<ListViewItem> {
           );
       }
     } else {
-      return TextButton.icon(
-        onPressed: () => onStart(widget.item),
-        icon: Icon(Icons.play_arrow),
-        label: Text('Start'),
-      );
+      if (isFileDownloaded)
+        return TextButton.icon(
+          onPressed: () {},
+          icon: Icon(Icons.check_circle),
+          label: Text('Completed'),
+        );
+      else
+        return TextButton.icon(
+          onPressed: () => onStart(widget.item),
+          icon: Icon(Icons.play_arrow),
+          label: Text('Start'),
+        );
     }
   }
 
@@ -144,13 +173,10 @@ class _ListViewItemState extends State<ListViewItem> {
         item.url,
         fullPath,
         progressCallback: (current, totalBytes, percentage) {
-          // final progress = (current / totalBytes) * 100;
-          // print('Downloading: $progress');
           _progressStreamController.sink.add(percentage / 100);
-          //
         },
         doneCallback: (filepath) {
-          setState(() {});
+          onDone(item);
         },
         errorCallback: (error) {
           ScaffoldMessenger.of(context)
@@ -170,6 +196,16 @@ class _ListViewItemState extends State<ListViewItem> {
 
   void onPause() {
     downloadManager.pauseDownload(downloadId);
+  }
+
+  void onDone(DownloadNetwork item) {
+    if (mounted) {
+      setState(() {});
+    }
+    print('file is downloaded');
+    notificationService.showNotification(
+        item.fileName, 'Download complete: ${item.fileName}');
+    BlocProvider.of<HomeCubit>(context);
   }
 
   Future<String> _getDownloadDirectory() async {

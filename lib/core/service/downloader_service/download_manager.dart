@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:downloader_app/core/service/downloader_service/download_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
 import 'package:http/http.dart';
@@ -102,4 +104,6 @@ class DownloadManager {
   DownloadState getDownloadState(String downloadId) {
     return _downloadStates[downloadId] ?? DownloadState.notStarted;
   }
+
+
 }

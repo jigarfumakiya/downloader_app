@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:downloader_app/core/injeaction/injection_container.dart';
+import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/home_widget.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await init();
+  await sl<NotificationService>().initNotification();
   await DatabaseUtil.initDatabase();
   runApp(const MyApp());
 }

@@ -44,4 +44,5 @@ class HomeCubit extends Cubit<HomeState> {
       emit(HomeFailureState(e.toString()));
     }
   }
+
 }
