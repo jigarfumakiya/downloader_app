@@ -117,9 +117,7 @@ class DownloadService {
             );
           } else if (message['type'] == 'done') {
             // Mark the chunk as downloaded and add the file to the list
-
             downloadedFiles.add(File(message['filePath']));
-            _doneCallback(message['filePath']);
             // Kill the isolate
             isolate.kill(priority: Isolate.immediate);
           } else if (message['type'] == 'error') {
@@ -151,7 +149,7 @@ class DownloadService {
         await file.delete();
       }
       await outputSink.close();
-      _doneCallback(outputFile.path);
+      _doneCallback(savePath);
     } catch (e) {
       _errorCallback('Error occurred while downloading the file: $e');
     }

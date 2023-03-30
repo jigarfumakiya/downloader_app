@@ -1,15 +1,25 @@
 import 'dart:io';
 
+import 'package:downloader_app/core/service/downloader_service/download_manager.dart';
+import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/core/widgets/resposive_layout.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
+import 'package:downloader_app/features/home/presentation/widget/add_downlaod_dialog.dart';
 import 'package:downloader_app/features/home/presentation/widget/list_view_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class HomeWidget extends StatefulWidget {
-  const HomeWidget({Key? key}) : super(key: key);
+  final DownloadManager downloadManager;
+  final NotificationService notificationService;
+
+  const HomeWidget({
+    Key? key,
+    required this.downloadManager,
+    required this.notificationService,
+  }) : super(key: key);
 
   @override
   State<HomeWidget> createState() => _HomeWidgetState();
@@ -19,6 +29,7 @@ class _HomeWidgetState extends State<HomeWidget> {
   @override
   void initState() {
     super.initState();
+    BlocProvider.of<HomeCubit>(context).getDownloads();
     if (!Platform.isMacOS) {
       askPermission();
     }
@@ -35,7 +46,6 @@ class _HomeWidgetState extends State<HomeWidget> {
 
   @override
   Widget build(BuildContext context) {
-    BlocProvider.of<HomeCubit>(context).getDownloads();
     return Scaffold(
       appBar: AppBar(title: Text('File Downloader')),
       floatingActionButton: FloatingActionButton(
@@ -88,60 +98,29 @@ class _HomeWidgetState extends State<HomeWidget> {
         final item = downloads[index];
         return ListViewItem(
           item: item,
+          notificationService: widget.notificationService,
+          downloadManager: widget.downloadManager,
         );
       },
     );
   }
 
-  void onAddDownload() {
-    final _urlTextController = TextEditingController();
-    showDialog(
+  Future<void> onAddDownload() async {
+    final url = await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Add File'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              TextFormField(
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                controller: _urlTextController,
-                decoration: InputDecoration(hintText: 'Paste URL'),
-                validator: (value) {
-                  if (value!.isEmpty) {
-                    return 'Enter URl';
-                  }
-                  if (!Uri.parse(value).isAbsolute) {
-                    return 'Enter valid download url';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => onAddCall(_urlTextController, context),
-              child: Text('Add'),
-            )
-          ],
-        );
+        return AddDownloadDialog();
       },
     );
+
+    /// If not null mean user has click on add
+    if (url != null) {
+      onAddCall(url, context);
+    }
   }
 
-  void onAddCall(
-      TextEditingController urlTextController, BuildContext context) {
-    if (urlTextController.text.isEmpty) {
-      return;
-    }
-    final url = urlTextController.text.trim();
+  void onAddCall(String urlTextController, BuildContext context) {
+    final url = urlTextController.trim();
     if (Uri.parse(url).isAbsolute) {
       /// Url is valid
       BlocProvider.of<HomeCubit>(context).addDownload(url);

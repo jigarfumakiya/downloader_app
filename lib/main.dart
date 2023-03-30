@@ -36,7 +36,10 @@ class MyApp extends StatelessWidget {
               primarySwatch: Colors.blue,
             ),
             home: child),
-        child: const HomeWidget(),
+        child: HomeWidget(
+          downloadManager: sl(),
+          notificationService: sl(),
+        ),
       ),
     );
   }

@@ -1,14 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:downloader_app/core/injeaction/injection_container.dart';
 import 'package:downloader_app/core/service/downloader_service/download_manager.dart';
 import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
-import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -18,15 +15,18 @@ import 'package:path_provider/path_provider.dart';
  * @Project: downloader_app
  * list_view_item
  */
-final downloadManager = sl<DownloadManager>();
-final notificationService = sl<NotificationService>();
 
+/// A widget that displays a single item in a ListView of downloads.
 class ListViewItem extends StatefulWidget {
+  final DownloadManager downloadManager;
+  final NotificationService notificationService;
   final DownloadNetwork item;
 
   ListViewItem({
     Key? key,
     required this.item,
+    required this.downloadManager,
+    required this.notificationService,
   }) : super(key: key);
 
   @override
@@ -34,24 +34,32 @@ class ListViewItem extends StatefulWidget {
 }
 
 class _ListViewItemState extends State<ListViewItem> {
-  double progress = 0.0;
   String downloadId = '';
-  late StreamController<double> _progressStreamController;
-  bool isFileDownloaded = false;
+
+  File? downloadFile;
+  late DownloadState _downloadState;
+  late ValueNotifier<double> _progressNotifier;
 
   @override
   void initState() {
     super.initState();
-    _progressStreamController = StreamController<double>();
+    // Initialize the download state to 'not started', and the progress notifier to 0.
+
+    _downloadState = DownloadState.notStarted;
+    _progressNotifier = ValueNotifier<double>(0);
+    // Check if the file has already been downloaded.
+
     checkIfFileDownloaded();
   }
 
   @override
   void dispose() {
-    _progressStreamController.close();
+    _progressNotifier.dispose();
     super.dispose();
   }
 
+  /// Checks if the file has already been downloaded and sets the downloadFile and
+  /// downloadState accordingly.
   Future<void> checkIfFileDownloaded() async {
     final fileName = p.basename(widget.item.url);
     final path = await _getDownloadDirectory();
@@ -60,16 +68,20 @@ class _ListViewItemState extends State<ListViewItem> {
     /// Checks if a file has already been downloaded at the specified [savePath].
     final file = File(fullPath);
     return file.exists().then((value) {
-      if (mounted) {
+      if (mounted && value) {
         setState(() {
-          isFileDownloaded = value;
+          downloadFile = file;
+          _downloadState = DownloadState.completed;
+          _progressNotifier.value = 100;
         });
+        print('downladed file path $downloadFile');
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    print('build called');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -88,16 +100,15 @@ class _ListViewItemState extends State<ListViewItem> {
             ],
           ),
           const SizedBox(height: 10),
-          StreamBuilder<double>(
-            stream: _progressStreamController.stream,
-            initialData: 0.0,
-            builder: (context, snapshot) {
+          ValueListenableBuilder(
+            valueListenable: _progressNotifier,
+            builder: (context, value, child) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   LinearProgressIndicator(
-                    value: isFileDownloaded ? 100 : snapshot.data,
+                    value: downloadFile != null ? 100 : value,
                     minHeight: 10,
                   ),
                   const SizedBox(height: 10),
@@ -114,50 +125,60 @@ class _ListViewItemState extends State<ListViewItem> {
   }
 
   Widget downloadState(DownloadNetwork item) {
-    if (downloadId != '') {
-      final state = downloadManager.getDownloadState(downloadId);
-      switch (state) {
-        case DownloadState.notStarted:
-          return TextButton.icon(
-            onPressed: () => onStart(widget.item),
-            icon: Icon(Icons.play_arrow),
-            label: Text('Start'),
-          );
-        case DownloadState.downloading:
-          return TextButton.icon(
-            onPressed: onPause,
-            icon: Icon(Icons.pause),
-            label: Text('Pause'),
-          );
-          break;
-        case DownloadState.completed:
-          return TextButton.icon(
-            onPressed: () {},
-            icon: Icon(Icons.check_circle),
-            label: Text('Completed'),
-          );
-
-        case DownloadState.pause:
-          return TextButton.icon(
-            onPressed: onResume,
-            icon: Icon(Icons.play_arrow),
-            label: Text('Resume'),
-          );
-      }
-    } else {
-      if (isFileDownloaded)
-        return TextButton.icon(
-          onPressed: () {},
-          icon: Icon(Icons.check_circle),
-          label: Text('Completed'),
-        );
-      else
+    switch (_downloadState) {
+      case DownloadState.notStarted:
         return TextButton.icon(
           onPressed: () => onStart(widget.item),
-          icon: Icon(Icons.play_arrow),
-          label: Text('Start'),
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Start'),
+        );
+      case DownloadState.downloading:
+        return TextButton.icon(
+          onPressed: onPause,
+          icon: const Icon(Icons.pause),
+          label: const Text('Pause'),
+        );
+        break;
+      case DownloadState.completed:
+
+        /// This edge condiaiton if user delete the download file then change the widget
+        if (downloadFile != null) {
+          return downlaodedWidget();
+        } else {
+          return TextButton.icon(
+            onPressed: () => onStart(widget.item),
+            icon: const Icon(Icons.play_arrow),
+            label: const Text('Start'),
+          );
+        }
+
+      case DownloadState.pause:
+        return TextButton.icon(
+          onPressed: onResume,
+          icon: const Icon(Icons.play_arrow),
+          label: const Text('Resume'),
         );
     }
+  }
+
+  Widget downlaodedWidget() {
+    return Row(
+      children: [
+        TextButton.icon(
+          onPressed: () {},
+          icon: const Icon(Icons.check_circle),
+          label: const Text('Completed'),
+        ),
+        const SizedBox(width: 10),
+        TextButton.icon(
+          onPressed: onDelete,
+          icon: const Icon(Icons.delete),
+          style: TextButton.styleFrom(
+              backgroundColor: Colors.red, foregroundColor: Colors.white),
+          label: const Text('Delete'),
+        ),
+      ],
+    );
   }
 
   /// class methods
@@ -169,13 +190,14 @@ class _ListViewItemState extends State<ListViewItem> {
       final fullPath = '$path/$fileName';
       print(fullPath);
 
-      downloadId = await downloadManager.addDownload(
+      downloadId = await widget.downloadManager.addDownload(
         item.url,
         fullPath,
         progressCallback: (current, totalBytes, percentage) {
-          _progressStreamController.sink.add(percentage / 100);
+          _progressNotifier.value = percentage / 100;
         },
         doneCallback: (filepath) {
+          downloadFile = File(filepath);
           onDone(item);
         },
         errorCallback: (error) {
@@ -189,24 +211,43 @@ class _ListViewItemState extends State<ListViewItem> {
       print('widget called');
       print(e);
     }
+    _downloadState = DownloadState.downloading;
+    setState(() {});
   }
 
   void onResume() {
-    downloadManager.resumeDownload(downloadId);
+    _downloadState = DownloadState.downloading;
+    widget.downloadManager.resumeDownload(downloadId);
+    setState(() {});
   }
 
   void onPause() {
-    downloadManager.pauseDownload(downloadId);
+    widget.downloadManager.pauseDownload(downloadId);
+    _downloadState = DownloadState.pause;
+    setState(() {});
+  }
+
+  Future<void> onDelete() async {
+    // To our current logic will show delete only when file is downloaded
+    if (downloadFile != null) {
+      await downloadFile!.delete();
+      _progressNotifier.value = 0.0;
+      setState(() {
+        downloadFile = null;
+      });
+      return;
+    }
+    print('No File found');
   }
 
   void onDone(DownloadNetwork item) {
+    _downloadState = DownloadState.completed;
     if (mounted) {
       setState(() {});
     }
     print('file is downloaded');
-    notificationService.showNotification(
-        item.fileName, 'Download complete: ${item.fileName}');
-    BlocProvider.of<HomeCubit>(context);
+    widget.notificationService
+        .showNotification(item.fileName, 'Download complete: ${item.fileName}');
   }
 
   Future<String> _getDownloadDirectory() async {
