@@ -32,6 +32,19 @@ class ListViewItem extends StatefulWidget {
 class _ListViewItemState extends State<ListViewItem> {
   double progress = 0.0;
   String downloadId = '';
+  late StreamController<double> _progressStreamController;
+
+  @override
+  void initState() {
+    super.initState();
+    _progressStreamController = StreamController<double>();
+  }
+
+  @override
+  void dispose() {
+    _progressStreamController.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,9 +67,18 @@ class _ListViewItemState extends State<ListViewItem> {
             ],
           ),
           const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: progress,
-            minHeight: 10,
+          SizedBox(
+            height: 10,
+            child: StreamBuilder<double>(
+              stream: _progressStreamController.stream,
+              initialData: 0.0,
+              builder: (context, snapshot) {
+                return LinearProgressIndicator(
+                  value: snapshot.data,
+                  minHeight: 10,
+                );
+              },
+            ),
           ),
           const SizedBox(height: 10),
           const Divider(thickness: 1),
@@ -116,14 +138,12 @@ class _ListViewItemState extends State<ListViewItem> {
     downloadId = await downloadManager.addDownload(
       item.url,
       fullPath,
-      progressCallback: (remainBytes, totalBytes, percentage) {
-        setState(() {
-          progress = (percentage / 100);
-        });
-        // print('on progress called $progress ');
-        // print('Remain Bytes $remainBytes ');
-        // print('Total Bytes $totalBytes ');
-        // print('percentage $percentage ');
+      progressCallback: (current, totalBytes, percentage) {
+
+        // final progress = (current / totalBytes) * 100;
+        // print('Downloading: $progress');
+        _progressStreamController.sink.add(percentage / 100);
+        //
       },
       doneCallback: (filepath) {
         setState(() {});

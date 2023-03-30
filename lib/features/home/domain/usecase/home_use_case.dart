@@ -12,4 +12,9 @@ class HomeUseCase {
   Future<Either<Failure, List<DownloadNetwork>>> getDownloads() async {
     return await _homeRepository.getDownloads();
   }
+
+  Future<Either<Failure, bool>> addDownloads(
+      String url, String fileName) async {
+    return await _homeRepository.addDownloads(url, fileName);
+  }
 }

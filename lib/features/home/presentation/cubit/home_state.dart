@@ -31,3 +31,12 @@ class HomeSuccessState extends HomeState {
   @override
   List<Object> get props => [downloads];
 }
+
+class AddDownloadStateFailure extends HomeState {
+  final String failureMessage;
+
+  const AddDownloadStateFailure(this.failureMessage);
+
+  @override
+  List<Object> get props => [failureMessage];
+}

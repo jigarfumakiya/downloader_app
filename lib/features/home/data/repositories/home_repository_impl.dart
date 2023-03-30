@@ -18,14 +18,9 @@ class HomeRepositoryImpl implements HomeRepository {
   @override
   Future<Either<Failure, List<DownloadNetwork>>> getDownloads() async {
     try {
-      List<DownloadNetwork> users = await localSource.getDownloads();
-      if (users.isEmpty) {
-        final useResponse = await remoteSource.getDownloads();
-        await localSource.cacheDownloades(useResponse);
-      }
-      //Refresh the list
-      refreshList();
-      return Right(users);
+      List<DownloadNetwork> downloads = await localSource.getDownloads();
+
+      return Right(downloads);
     } on ApiException catch (e) {
       return Left(ServerFailure(e.message));
     }
@@ -34,5 +29,16 @@ class HomeRepositoryImpl implements HomeRepository {
   Future<void> refreshList() async {
     final useResponse = await remoteSource.getDownloads();
     await localSource.cacheDownloades(useResponse);
+  }
+
+  @override
+  Future<Either<Failure, bool>> addDownloads(
+      String url, String fileName) async {
+    try {
+      await localSource.addDownload(url, fileName);
+      return const Right(true);
+    } on ApiException catch (e) {
+      return Left(ServerFailure(e.message));
+    }
   }
 }

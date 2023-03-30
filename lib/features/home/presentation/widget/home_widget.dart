@@ -1,12 +1,11 @@
 import 'dart:io';
 
-import 'package:downloader_app/core/service/downloader_service/download_service.dart';
+import 'package:downloader_app/core/widgets/resposive_layout.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/list_view_item.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-
 import 'package:permission_handler/permission_handler.dart';
 
 class HomeWidget extends StatefulWidget {
@@ -20,7 +19,9 @@ class _HomeWidgetState extends State<HomeWidget> {
   @override
   void initState() {
     super.initState();
-    askPermission();
+    if (!Platform.isMacOS) {
+      askPermission();
+    }
   }
 
   Future<void> askPermission() async {
@@ -32,8 +33,6 @@ class _HomeWidgetState extends State<HomeWidget> {
     }
   }
 
-
-
   @override
   Widget build(BuildContext context) {
     BlocProvider.of<HomeCubit>(context).getDownloads();
@@ -43,14 +42,32 @@ class _HomeWidgetState extends State<HomeWidget> {
         onPressed: onAddDownload,
         child: Icon(Icons.add),
       ),
-      body: _buildHomeBody(),
+      body: ResponsiveLayout(
+        mobile: _buildHomeBody(),
+        macOS: Container(
+          child: Text('Macos'),
+        ),
+        tablet: Container(),
+      ),
     );
   }
 
   Widget _buildHomeBody() {
     return Padding(
       padding: const EdgeInsets.all(8.0),
-      child: BlocBuilder<HomeCubit, HomeState>(
+      child: BlocConsumer<HomeCubit, HomeState>(
+        listenWhen: (previous, current) {
+          return current is AddDownloadStateFailure;
+        },
+        listener: (context, state) {
+          if (state is AddDownloadStateFailure) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(state.failureMessage)));
+          }
+        },
+        buildWhen: (previous, current) {
+          return current is! AddDownloadStateFailure;
+        },
         builder: (context, state) {
           if (state is HomeLoading) {
             return const CircularProgressIndicator();
@@ -79,6 +96,7 @@ class _HomeWidgetState extends State<HomeWidget> {
   }
 
   void onAddDownload() {
+    final _urlTextController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) {
@@ -86,8 +104,9 @@ class _HomeWidgetState extends State<HomeWidget> {
           title: const Text('Add File'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            children: const <Widget>[
+            children: <Widget>[
               TextField(
+                controller: _urlTextController,
                 decoration: InputDecoration(hintText: 'Paste URL'),
               ),
             ],
@@ -100,9 +119,7 @@ class _HomeWidgetState extends State<HomeWidget> {
               child: Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
-
-              },
+              onPressed: () => onAddCall(_urlTextController, context),
               child: Text('Add'),
             )
           ],
@@ -111,17 +128,18 @@ class _HomeWidgetState extends State<HomeWidget> {
     );
   }
 
-  Future<void> onDownloadTap() async {
-    // // const url = "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
-    // const url = "https://jsoncompare.org/LearningContainer/SampleFiles/Video/MP4/Sample-MP4-Video-File-Download.mp4"; // 50 MB
-    const url =
-        "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"; // 50 MB
-    // const url = "https://jsoncompare.org/LearningContainer/SampleFiles/Video/MP4/Sample-MP4-Video-File-for-Testing.mp4";
-    // const url = "https://jsoncompare.org/LearningContainer/SampleFiles/Video/MP4/Sample-Video-File-For-Testing.mp4"; //95 MB
-    // const url = "https://file-examples.com/wp-content/uploads/2017/10/file-example_PDF_1MB.pdf"; //95 MB
-    // const url = "https://file-examples.com/wp-content/uploads/2017/10/file_example_JPG_2500kB.jpg"; //Image
-    // const url = "https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_5MG.mp3"; //Audio
-    // const url = "https://filesamples.com/samples/video/mp4/sample_3840x2160.mp4"; //Video
-
+  void onAddCall(TextEditingController urlTextController,
+      BuildContext context) {
+    if (urlTextController.text.isEmpty) {
+      return;
+    }
+    final url = urlTextController.text.trim();
+    if (Uri
+        .parse(url)
+        .isAbsolute) {
+      /// Url is valid
+      BlocProvider.of<HomeCubit>(context).addDownload(url);
+      Navigator.of(context).pop();
+    }
   }
 }

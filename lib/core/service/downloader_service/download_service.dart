@@ -12,9 +12,8 @@ import 'dart:isolate';
 import 'dart:math';
 
 import 'package:http/http.dart';
+import 'package:mutex/mutex.dart';
 import 'package:path/path.dart' as p;
-
-import '../../../main.dart';
 
 /// Global [typedef] that returns a `int` with the current byte on download
 /// and another `int` with the total of bytes of the file.
@@ -81,6 +80,7 @@ class DownloadService {
     final int numberOfChunks = (contentLength / dynamicChunkSize).ceil();
     final List<Range> ranges = _splitRange(contentLength, numberOfChunks);
     final List<File> downloadedFiles = [];
+    final int totalChunksSize = contentLength * numberOfChunks;
 
     // Create a list of ReceivePort instances to receive data from isolates
     List<ReceivePort> receivePorts = [];
@@ -99,6 +99,7 @@ class DownloadService {
           range: ranges[i],
           contentLength: contentLength,
           sendPort: receivePort.sendPort,
+          chunkSize: totalChunksSize,
         ),
       );
       final model = _DownloadTask(isolate: isolate);
@@ -109,7 +110,7 @@ class DownloadService {
         if (message['type'] == 'progress') {
           // Update progress
           _progressCallback(
-            message['remainingBytes'],
+            message['currentBytes'],
             message['contentLength'],
             message['percentage'],
           );
@@ -172,6 +173,7 @@ class DownloadService {
     final Range range = model.range;
     final int contentLength = model.contentLength;
     final SendPort sendPort = model.sendPort;
+    final _mutex = Mutex();
 
     var request = Request('GET', Uri.parse(magnetUri));
 
@@ -212,28 +214,28 @@ class DownloadService {
 
         final completer = Completer<String>();
         response.stream.listen((List<int> data) async {
+          _mutex.acquire();
           final rangeLength = range.end - range.start + 1;
-          final currentProgress = lastProgress + data.length;
-          final remainingBytes = rangeLength - currentProgress;
+          final currentProgress = (lastProgress) + (data.length);
           final percentage = (currentProgress / rangeLength) * 100;
-          if (resumedStart > range.end) {
-            print('Chunk Downloaded Range ${currentFile.path}');
-          }
           randomAccessFile.writeFromSync(data);
+
+          // print('percentage $percentage');
+          // print('currentBytes $currentProgress');
 
           // Send progress update
           sendPort.send({
             'type': 'progress',
-            'remainingBytes': remainingBytes,
+            'currentBytes': currentProgress ,
             'contentLength': contentLength,
             'percentage': percentage,
             'path': currentFile.path
           });
 
-          lastProgress = currentProgress;
+          // lastProgress = currentProgress;
+          lastProgress = range.start + (currentFile.lengthSync());
+          _mutex.release();
         }, onDone: () async {
-          print('Chunk Downloaded ${currentFile.path}');
-          print('Chunk currentProgress ${currentFile.lengthSync()}');
           completer.complete(currentFile.path);
           await randomAccessFile.close();
           // Send completion message
@@ -306,7 +308,6 @@ class DownloadService {
     final response = await request.close();
     final contentLength =
         int.parse(response.headers.value(HttpHeaders.contentLengthHeader)!);
-    ioClient.close();
     return contentLength;
   }
 }
@@ -340,6 +341,7 @@ class DownloadChunkModel {
   final Range range;
   final int contentLength;
   final SendPort sendPort;
+  final int chunkSize;
 
   DownloadChunkModel({
     required this.magnetUri,
@@ -347,6 +349,7 @@ class DownloadChunkModel {
     required this.range,
     required this.contentLength,
     required this.sendPort,
+    required this.chunkSize,
   });
 
   Map<String, dynamic> toJson() {
@@ -365,7 +368,8 @@ class DownloadChunkModel {
         savePath: json['savePath'] as String,
         range: Range.fromJson(json['range'] as Map<String, dynamic>),
         contentLength: json['contentLength'] as int,
-        sendPort: json['sendPort'] as SendPort);
+        sendPort: json['sendPort'] as SendPort,
+        chunkSize: json['chunkSize'] as int);
   }
 }
 

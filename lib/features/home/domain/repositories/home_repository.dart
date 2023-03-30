@@ -4,5 +4,6 @@ import 'package:downloader_app/features/home/data/models/home_network.dart';
 
 abstract class HomeRepository {
   Future<Either<Failure, List<DownloadNetwork>>> getDownloads();
+  Future<Either<Failure, bool>> addDownloads(String url,String fileName);
 
 }
