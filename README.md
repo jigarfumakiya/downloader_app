@@ -1,16 +1,17 @@
 # Downloader App
-
 #### The Downloader App is a Dart-based application that handles downloading large files in chunks using isolates. The application supports pausing and resuming the download, and provides progress updates throughout the download process.
 
-## Features
+## 🎉 Features included:
 
-* Download large files in chunks
-* Pause and resume downloads
-* Track progress during download
-* Manage download tasks using isolates
-
-## Usage
-#### Here is an example of how to use the Downloader App:
+- [x] Download large files in chunks
+- [x] Pause and resume downloads
+- [x] Pause and resume downloads
+- [x] Track progress during download
+- [x] **Clean Architecture**
+    - [x] Unit Test
+    - [x] Widget/Golden Test
+    - [x] Integration/Automated
+- [x] Internet Checking
 
 
 ```dart
@@ -31,4 +32,21 @@
     );
     print('downloadId $downloadId');
 ```
+
+
+## 📹 Here is the demo
+
+
+
+## 🧪 Testing
+
+### Widget/Golden Test
+The app also has widget tests that test the UI of the app [Here](https://github.com/jigarfumakiya/downloader_app/tree/main/test/features/home/presentation/widget) 
+
+
+### Integration/Automated Test
+The app has integration/automated tests that test the interaction of different parts of the app  [Here](https://github.com/jigarfumakiya/downloader_app/tree/main/integration_test)
+
+
+
 

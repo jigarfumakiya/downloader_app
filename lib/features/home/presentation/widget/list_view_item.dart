@@ -6,6 +6,7 @@ import 'package:downloader_app/core/service/notification_service.dart';
 import 'package:downloader_app/features/home/data/datasource/local/database/table/download_table.dart';
 import 'package:downloader_app/features/home/data/models/home_network.dart';
 import 'package:flutter/material.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -81,7 +82,6 @@ class _ListViewItemState extends State<ListViewItem> {
 
   @override
   Widget build(BuildContext context) {
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
@@ -184,6 +184,11 @@ class _ListViewItemState extends State<ListViewItem> {
   /// class methods
 
   Future<void> onStart(DownloadNetwork item) async {
+    if (!(await isInternetAvailable())) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Please connect to internet')));
+      return;
+    }
     try {
       final fileName = p.basename(item.url);
       final path = await _getDownloadDirectory();
@@ -215,7 +220,12 @@ class _ListViewItemState extends State<ListViewItem> {
     setState(() {});
   }
 
-  void onResume() {
+  Future<void> onResume() async {
+    if (!(await isInternetAvailable())) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Please connect to internet')));
+    return;
+    }
     _downloadState = DownloadState.downloading;
     widget.downloadManager.resumeDownload(downloadId);
     setState(() {});
@@ -256,5 +266,10 @@ class _ListViewItemState extends State<ListViewItem> {
     } else {
       return (await getDownloadsDirectory())!.path;
     }
+  }
+
+  Future<bool> isInternetAvailable() async {
+    bool hasDataAvailable = await InternetConnectionChecker().hasConnection;
+    return hasDataAvailable;
   }
 }
