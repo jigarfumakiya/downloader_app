@@ -3,9 +3,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 Widget wrapWithGoldenWidget(Widget child) {
   return ScreenUtilInit(
-    // minTextAdapt: true,
-    // scaleByHeight: true,
-    // useInheritedMediaQuery: true,
+    minTextAdapt: true,
+    scaleByHeight: true,
+    useInheritedMediaQuery: true,
     builder: (context, _) {
       return child;
     },

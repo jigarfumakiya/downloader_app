@@ -5,6 +5,7 @@ import 'package:downloader_app/core/injeaction/injection_container.dart';
 import 'package:downloader_app/features/home/presentation/cubit/home_cubit.dart';
 import 'package:downloader_app/features/home/presentation/widget/home_list_view.dart';
 import 'package:downloader_app/features/home/presentation/widget/home_widget.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -72,12 +73,88 @@ void main() {
           expect(finder, findsOneWidget);
         },
       );
-
       await widgetTester.pumpDeviceBuilder(builder);
 
       await widgetTester.pump(const Duration(seconds: 1));
 
       await screenMatchesGolden(widgetTester, 'home_screen_success');
+    });
+
+    testGoldens('Should show loading state  ', (widgetTester) async {
+      final widget = BlocProvider<HomeCubit>(
+        create: (context) => mockTopicCubit,
+        child: wrapWithGoldenWidget(HomeWidget(
+          downloadManager: mockDownloadManager,
+          notificationService: mockNotificationService,
+        )),
+      );
+
+      when(() => mockTopicCubit.state).thenReturn(HomeLoading());
+
+      final builder = DeviceBuilder();
+      builder.overrideDevicesForAllScenarios(
+          devices: [Device.phone, Device.iphone11]);
+
+      builder.addScenario(
+        widget: widget,
+        onCreate: (scenarioWidgetKey) async {
+          final finder = find.descendant(
+            of: find.byKey(scenarioWidgetKey),
+            matching: find.byType(CircularProgressIndicator),
+          );
+
+          expect(finder, findsOneWidget);
+        },
+      );
+
+      await widgetTester.pumpDeviceBuilder(builder);
+
+      await widgetTester.pump(const Duration(seconds: 1));
+
+      await screenMatchesGolden(
+        widgetTester,
+        'home_screen_loading',
+        customPump: (tester) {
+          return tester.pump(const Duration(seconds: 5));
+        },
+      );
+    });
+
+    testGoldens('Should show error when state is error ', (widgetTester) async {
+      const failureMessage = 'Unable to load contacts';
+
+      final widget = BlocProvider<HomeCubit>(
+        create: (context) => mockTopicCubit,
+        child: wrapWithGoldenWidget(HomeWidget(
+          downloadManager: mockDownloadManager,
+          notificationService: mockNotificationService,
+        )),
+      );
+
+      when(() => mockTopicCubit.state)
+          .thenReturn(const HomeFailureState(failureMessage));
+
+      final builder = DeviceBuilder();
+      builder.overrideDevicesForAllScenarios(
+          devices: [Device.phone, Device.iphone11]);
+
+      builder.addScenario(
+        widget: widget,
+        onCreate: (scenarioWidgetKey) async {
+          final finder = find.descendant(
+            of: find.byKey(scenarioWidgetKey),
+            matching: find.text(failureMessage),
+          );
+
+          expect(finder, findsOneWidget);
+        },
+      );
+
+      await widgetTester.pumpDeviceBuilder(builder);
+
+      await widgetTester.pump(const Duration(seconds: 1));
+
+      await screenMatchesGolden(widgetTester, 'home_screen_failure');
     });
   });
 }

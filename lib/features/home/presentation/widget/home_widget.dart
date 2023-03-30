@@ -48,7 +48,7 @@ class _HomeWidgetState extends State<HomeWidget> {
       appBar: AppBar(title: Text('File Downloader')),
       floatingActionButton: FloatingActionButton(
         onPressed: onAddDownload,
-        child: Icon(Icons.add),
+        child: const Icon(Icons.add),
       ),
       body: ResponsiveLayout(
         mobile: _buildHomeBody(),
@@ -76,9 +76,10 @@ class _HomeWidgetState extends State<HomeWidget> {
         },
         builder: (context, state) {
           if (state is HomeLoading) {
-            return const CircularProgressIndicator();
+            return const Center(child: CircularProgressIndicator());
           } else if (state is HomeFailureState) {
-            return Text(state.failureMessage);
+            //Todo make single reusable wide
+            return Center(child: Text(state.failureMessage));
           } else if (state is HomeSuccessState) {
             return HomeListView(
               downloads: state.downloads,
