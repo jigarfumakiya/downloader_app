@@ -105,9 +105,19 @@ class _HomeWidgetState extends State<HomeWidget> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              TextField(
+              TextFormField(
+                autovalidateMode: AutovalidateMode.onUserInteraction,
                 controller: _urlTextController,
                 decoration: InputDecoration(hintText: 'Paste URL'),
+                validator: (value) {
+                  if (value!.isEmpty) {
+                    return 'Enter URl';
+                  }
+                  if (!Uri.parse(value).isAbsolute) {
+                    return 'Enter valid download url';
+                  }
+                  return null;
+                },
               ),
             ],
           ),
@@ -128,15 +138,13 @@ class _HomeWidgetState extends State<HomeWidget> {
     );
   }
 
-  void onAddCall(TextEditingController urlTextController,
-      BuildContext context) {
+  void onAddCall(
+      TextEditingController urlTextController, BuildContext context) {
     if (urlTextController.text.isEmpty) {
       return;
     }
     final url = urlTextController.text.trim();
-    if (Uri
-        .parse(url)
-        .isAbsolute) {
+    if (Uri.parse(url).isAbsolute) {
       /// Url is valid
       BlocProvider.of<HomeCubit>(context).addDownload(url);
       Navigator.of(context).pop();
