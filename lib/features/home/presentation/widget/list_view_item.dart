@@ -141,7 +141,7 @@ class _ListViewItemState extends State<ListViewItem> {
         break;
       case DownloadState.completed:
 
-        /// This edge condiaiton if user delete the download file then change the widget
+        /// This edge condition if user delete the download file then change the widget
         if (downloadFile != null) {
           return downlaodedWidget();
         } else {
@@ -200,6 +200,9 @@ class _ListViewItemState extends State<ListViewItem> {
         fullPath,
         progressCallback: (current, totalBytes, percentage) {
           _progressNotifier.value = percentage / 100;
+          print('current $current');
+          print('totalBytes $totalBytes');
+          print('percentage $percentage');
         },
         doneCallback: (filepath) {
           downloadFile = File(filepath);
@@ -222,9 +225,9 @@ class _ListViewItemState extends State<ListViewItem> {
 
   Future<void> onResume() async {
     if (!(await isInternetAvailable())) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Please connect to internet')));
-    return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Please connect to internet')));
+      return;
     }
     _downloadState = DownloadState.downloading;
     widget.downloadManager.resumeDownload(downloadId);

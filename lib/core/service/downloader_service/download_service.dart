@@ -48,6 +48,7 @@ class DownloadService {
   final ProgressErrorCallback _errorCallback;
   List<_DownloadTask> isolates;
   final Client client;
+  final DownloadProgress _downloadProgress;
 
   /// Creates a new DownloadService instance.
   ///
@@ -65,6 +66,7 @@ class DownloadService {
   })  : _progressCallback = progressCallback,
         _doneCallback = doneCallback,
         _errorCallback = errorCallback,
+        _downloadProgress = DownloadProgress(downloadedBytes: 0, totalBytes: 0),
         isolates = [];
 
   /// Downloads a file using the given [magnetUri] and saves it to [savePath].
@@ -109,12 +111,18 @@ class DownloadService {
         // Listen for messages from the isolate
         receivePort.listen((message) {
           if (message['type'] == 'progress') {
+            _downloadProgress.downloadedBytes +=
+                message['progressDifference'] as int;
             // Update progress
             _progressCallback(
-              message['currentBytes'],
-              message['contentLength'],
-              message['percentage'],
+              _downloadProgress.downloadedBytes,
+              _downloadProgress.totalBytes,
+              _downloadProgress.percentage,
             );
+          }
+          if (message['type'] == 'lastResume') {
+            _downloadProgress.downloadedBytes +=
+                message['downloadedBytes'] as int;
           } else if (message['type'] == 'done') {
             // Mark the chunk as downloaded and add the file to the list
             downloadedFiles.add(File(message['filePath']));
@@ -193,6 +201,7 @@ class DownloadService {
       }
     } else {
       lastProgress = await currentFile.length();
+      sendPort.send({'type': 'lastResume', 'downloadedBytes': lastProgress});
     }
     final resumedStart = range.start + lastProgress;
 
@@ -217,28 +226,31 @@ class DownloadService {
         final completer = Completer<String>();
         response.stream.listen((List<int> data) async {
           _mutex.acquire();
-          final rangeLength = range.end - range.start + 1;
           final currentProgress = (lastProgress) + (data.length);
-          final percentage = (currentProgress / rangeLength) * 100;
+          int progressDifference = currentProgress - lastProgress;
           randomAccessFile.writeFromSync(data);
 
           // Send progress update
           sendPort.send({
             'type': 'progress',
+            'progressDifference': progressDifference,
             'currentBytes': currentProgress,
             'contentLength': contentLength,
-            'percentage': percentage,
             'path': currentFile.path
           });
 
-          // lastProgress = currentProgress;
           lastProgress = range.start + (currentFile.lengthSync());
+
           _mutex.release();
         }, onDone: () async {
           completer.complete(currentFile.path);
           await randomAccessFile.close();
           // Send completion message
-          sendPort.send({'type': 'done', 'filePath': currentFile.path});
+          sendPort.send({
+            'type': 'done',
+            'filePath': currentFile.path,
+            'currentBytes': lastProgress
+          });
         }, onError: (error) async {
           await randomAccessFile.close();
           completer.completeError(error);
@@ -292,6 +304,8 @@ class DownloadService {
           contentLength - 1); // Subtract 1 from end range
       ranges.add(Range(start, end));
     }
+    _downloadProgress.totalBytes = contentLength;
+
     return ranges;
   }
 
@@ -388,4 +402,13 @@ class _DownloadTask {
     required this.isolate,
     this.capability,
   });
+}
+
+class DownloadProgress {
+  int downloadedBytes;
+  int totalBytes;
+
+  DownloadProgress({required this.downloadedBytes, required this.totalBytes});
+
+  double get percentage => (downloadedBytes / totalBytes) * 100;
 }

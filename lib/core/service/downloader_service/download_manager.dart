@@ -25,7 +25,6 @@ import '../../injeaction/injection_container.dart';
 ///
 class DownloadManager {
   // Stores the download states using download IDs as keys.
-
   final Map<String, DownloadState> _downloadStates = {};
 
   // A list of download service instances to manage active downloads.
